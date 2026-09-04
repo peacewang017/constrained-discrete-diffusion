@@ -116,15 +116,16 @@ def sample_mdlm_continuation(
         move_chance_t = t
         move_chance_s = t - dt
 
-        output = model(input_ids=x, timesteps=torch.zeros_like(t_tensor))
-        logits = output if isinstance(output, torch.Tensor) else output.logits
-        logits = logits.float()
+        with torch.no_grad():
+            output = model(input_ids=x, timesteps=torch.zeros_like(t_tensor))
+            logits = output if isinstance(output, torch.Tensor) else output.logits
+            logits = logits.float()
 
-        log_p_x0 = _subs_parameterization(logits, x)
-        p_x0 = log_p_x0.exp()
+            log_p_x0 = _subs_parameterization(logits, x)
+            p_x0 = log_p_x0.exp()
 
-        q_xs = p_x0 * (move_chance_t - move_chance_s)
-        q_xs[:, :, MASK_INDEX] = move_chance_s
+            q_xs = p_x0 * (move_chance_t - move_chance_s)
+            q_xs[:, :, MASK_INDEX] = move_chance_s
 
         if full_text_delta_g_fn is not None:
             with torch.enable_grad():
@@ -142,16 +143,18 @@ def sample_mdlm_continuation(
                     gumbel_temperature=cdd_params.get('gumbel_temperature', 0.5),
                     verbose=False,
                 )
-                q_xs = torch.cat([q_xs[:, :prefix_len, :], q_xs_proj], dim=1)
+            q_xs = torch.cat([q_xs[:, :prefix_len, :], q_xs_proj.detach()], dim=1)
 
-        _x = _sample_categorical(q_xs)
+        with torch.no_grad():
+            _x = _sample_categorical(q_xs)
 
-        copy_flag = (x != MASK_INDEX).to(x.dtype)
-        x = (copy_flag * x + (1 - copy_flag) * _x).long()
+            copy_flag = (x != MASK_INDEX).to(x.dtype)
+            x = (copy_flag * x + (1 - copy_flag) * _x).long()
 
-    output = model(input_ids=x, timesteps=torch.zeros(batch_size, device=device))
-    logits = output if isinstance(output, torch.Tensor) else output.logits
-    x = _subs_parameterization(logits.float(), x).argmax(dim=-1)
+    with torch.no_grad():
+        output = model(input_ids=x, timesteps=torch.zeros(batch_size, device=device))
+        logits = output if isinstance(output, torch.Tensor) else output.logits
+        x = _subs_parameterization(logits.float(), x).argmax(dim=-1)
 
     decoded = tokenizer.decode(x[0].cpu().tolist(), skip_special_tokens=True)
     return decoded
