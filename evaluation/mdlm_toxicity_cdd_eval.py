@@ -670,6 +670,12 @@ def main():
     COMPUTE_COHERENCE = os.environ.get('COMPUTE_COHERENCE', '0') == '1'
     GUMBEL_TEMP = float(os.environ.get('GUMBEL_TEMP', '0.5'))
 
+    if not TOXICITY_CKPT:
+        raise RuntimeError(
+            "TOXICITY_CKPT is not set. Set TOXICITY_CKPT=/path/to/best_model.pt "
+            "(train one with cdd/toxicity/train.py if you don't have one yet)."
+        )
+
     torch.manual_seed(SEED)
     np.random.seed(SEED)
 

@@ -11,4 +11,4 @@ source /home/zyluo/miniconda3/etc/profile.d/conda.sh
 conda activate cdd
 
 echo "Running CDD evaluation..."
-python evaluation/udlm_qm9_cdd_eval.py
+python evaluation/udlm_qm9_sascore_cdd_eval.py

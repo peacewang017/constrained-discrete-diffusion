@@ -49,7 +49,11 @@ class ToxicitySurrogate(nn.Module):
         x = self.input_proj(embeddings)
         outputs = self.backbone(inputs_embeds=x, attention_mask=attention_mask)
         hidden_states = outputs.last_hidden_state
-        mean_embedding = hidden_states.mean(dim=1)
+        if attention_mask is not None:
+            mask = attention_mask.unsqueeze(-1).to(hidden_states.dtype)
+            mean_embedding = (hidden_states * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-6)
+        else:
+            mean_embedding = hidden_states.mean(dim=1)
         logit = self.classifier(mean_embedding).squeeze(-1)
         return logit
 

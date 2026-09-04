@@ -10,6 +10,11 @@ SASCORE_DEFAULT_CKPT = Path(__file__).parent / "sascore" / "checkpoints"
 TEXT_MODEL_NAME = "kuleshov-group/udlm-lm1b"
 TOXICITY_DEFAULT_CKPT = Path(__file__).parent / "toxicity" / "checkpoints"
 
+_sascore_model_cache: dict = {}
+_toxicity_model_cache: dict = {}
+_gumbel_embedder_cache: dict = {}
+_gumbel_embedder_text_cache: dict = {}
+
 
 class GumbelEmbedder:
     """Converts soft token distributions to embeddings via UDLM embedding matrix."""
@@ -85,10 +90,14 @@ def delta_g_qm9_sa(
         ckpt = _get_latest_sascore_ckpt()
         if ckpt is None:
             raise RuntimeError("No sascore checkpoint found. Train sascore first.")
-        sascore_model = SASCOREWrapper(checkpoint_path=ckpt)
+        if ckpt not in _sascore_model_cache:
+            _sascore_model_cache[ckpt] = SASCOREWrapper(checkpoint_path=ckpt)
+        sascore_model = _sascore_model_cache[ckpt]
 
     if embedder is None:
-        embedder = GumbelEmbedder()
+        if UDLM_MODEL_NAME not in _gumbel_embedder_cache:
+            _gumbel_embedder_cache[UDLM_MODEL_NAME] = GumbelEmbedder()
+        embedder = _gumbel_embedder_cache[UDLM_MODEL_NAME]
 
     embeddings = embedder.soft_to_embedding(y_soft).float()
     sa_scores = sascore_model(embeddings)
@@ -220,10 +229,14 @@ def delta_g_toxicity(
         ckpt = _get_latest_toxicity_ckpt()
         if ckpt is None:
             raise RuntimeError("No toxicity checkpoint found. Train toxicity surrogate first.")
-        toxicity_model = ToxicityWrapper(checkpoint_path=ckpt)
+        if ckpt not in _toxicity_model_cache:
+            _toxicity_model_cache[ckpt] = ToxicityWrapper(checkpoint_path=ckpt)
+        toxicity_model = _toxicity_model_cache[ckpt]
 
     if embedder is None:
-        embedder = GumbelEmbedderText()
+        if TEXT_MODEL_NAME not in _gumbel_embedder_text_cache:
+            _gumbel_embedder_text_cache[TEXT_MODEL_NAME] = GumbelEmbedderText()
+        embedder = _gumbel_embedder_text_cache[TEXT_MODEL_NAME]
 
     embeddings = embedder.soft_to_embedding(y_soft).float()
     toxicity_scores = toxicity_model(embeddings)
